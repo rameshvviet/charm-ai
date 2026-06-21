@@ -1,0 +1,86 @@
+{
+  "_version": "1.59.0",
+  "sap.app": {
+    "id": "charm.ai.changes",
+    "type": "application",
+    "title": "Change Requests",
+    "description": "AI-powered Change Request Management",
+    "dataSources": {
+      "mainService": {
+        "uri": "/api/",
+        "type": "OData",
+        "settings": {
+          "odataVersion": "4.0"
+        }
+      }
+    }
+  },
+  "sap.ui5": {
+    "dependencies": {
+      "libs": {
+        "sap.fe.templates": {}
+      }
+    },
+    "models": {
+      "": {
+        "dataSource": "mainService",
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "routes": [
+        {
+          "pattern": ":?query:",
+          "name": "ChangeRequestsList",
+          "target": "ChangeRequestsList"
+        },
+        {
+          "pattern": "ChangeRequests({key}):?query:",
+          "name": "ChangeRequestsDetails",
+          "target": "ChangeRequestsDetails"
+        }
+      ],
+      "targets": {
+        "ChangeRequestsList": {
+          "type": "Component",
+          "id": "ChangeRequestsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "ChangeRequests",
+              "variantManagement": "None",
+              "initialLoad": true
+            }
+          }
+        },
+        "ChangeRequestsDetails": {
+          "type": "Component",
+          "id": "ChangeRequestsDetails",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "entitySet": "ChangeRequests"
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.flp": {
+    "type": "application",
+    "inbounds": {
+      "ChangeRequests-manage": {
+        "semanticObject": "ChangeRequests",
+        "action": "manage",
+        "title": "Change Requests",
+        "subtitle": "AI Risk Scoring",
+        "icon": "sap-icon://request"
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "services": {
+    "LaunchPage": {
+      "adapter": {
+        "config": {
+          "groups": [
+            {
+              "id": "charm_ai",
+              "title": "Change Management AI",
+              "isPreset": true,
+              "isVisible": true,
+              "isGroupLocked": false,
+              "tiles": [
+                {
+                  "id": "change-requests",
+                  "title": "Change Requests",
+                  "description": "Manage AI-powered change requests",
+                  "icon": "sap-icon://request",
+                  "tileType": "sap.ushell.ui.tile.StaticTile",
+                  "properties": {
+                    "chipId": "catalogTile_00",
+                    "title": "Change Requests",
+                    "subtitle": "AI Risk Scoring",
+                    "icon": "sap-icon://request",
+                    "targetURL": "#ChangeRequests-manage"
+                  }
+                },
+                {
+                  "id": "approvals",
+                  "title": "Approvals",
+                  "description": "Pending approvals",
+                  "icon": "sap-icon://approve",
+                  "tileType": "sap.ushell.ui.tile.StaticTile",
+                  "properties": {
+                    "chipId": "catalogTile_01",
+                    "title": "Approvals",
+                    "subtitle": "Pending actions",
+                    "icon": "sap-icon://message-success",
+                    "targetURL": "#ApprovalSteps-manage"
+                  }
+                },
+                {
+                  "id": "transports",
+                  "title": "Transports",
+                  "description": "Transport management",
+                  "icon": "sap-icon://transport-request",
+                  "tileType": "sap.ushell.ui.tile.StaticTile",
+                  "properties": {
+                    "chipId": "catalogTile_02",
+                    "title": "Transports",
+                    "subtitle": "SAP Transport Management",
+                    "icon": "sap-icon://it-system",
+                    "targetURL": "#Transports-manage"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
