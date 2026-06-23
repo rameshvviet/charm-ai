@@ -4,6 +4,7 @@ namespace charm.ai;
 
 entity ChangeRequest {
   key ID              : UUID;
+  crNumber            : String(20);
   title               : String(200);
   description         : String(5000);
   status              : String(20)  default 'Draft';
@@ -26,9 +27,34 @@ entity ChangeRequest {
   retrofits           : Composition of many RetrofitTracker on retrofits.sourceChange = $self;
 }
 
+// ── Approval workflow config (admin) ────────────────────
+
+entity ApprovalWorkflow {
+  key ID              : UUID;
+  name                : String(100);
+  description         : String(500);
+  isActive            : Integer     default 1;
+  isDefault           : Integer     default 0;
+  steps               : Composition of many ApprovalWorkflowStep on steps.workflow = $self;
+}
+
+entity ApprovalWorkflowStep {
+  key ID              : UUID;
+  workflow            : Association to ApprovalWorkflow;
+  stepOrder           : Integer;
+  stepName            : String(100);
+  approverRole        : String(50);
+  approverEmail       : String(200);
+  requiresAll         : Integer     default 0;
+  slaDays             : Integer     default 2;
+  isCab               : Integer     default 0;
+  condition           : String(500);
+}
+
 entity ApprovalStep {
   key ID              : UUID;
   changeRequest       : Association to ChangeRequest;
+  workflowStep        : Association to ApprovalWorkflowStep;
   approver            : String(100);
   role                : String(50);
   status              : String(20)  default 'Pending';
@@ -39,6 +65,22 @@ entity ApprovalStep {
   escalatedTo         : String(100);
 }
 
+// ── Transport groups (admin configures) ─────────────────
+
+entity TransportGroup {
+  key ID              : UUID;
+  name                : String(100);
+  description         : String(500);
+  landscape           : Association to SystemLandscape;
+  workflow            : Association to ApprovalWorkflow;
+  requiresDependencyCheck : Integer default 1;
+  requiresOverwriteCheck  : Integer default 1;
+  requiresTestCompletion  : Integer default 1;
+  requiresCAB             : Integer default 0;
+  freezeWindowEnforced    : Integer default 1;
+  isActive            : Integer     default 1;
+}
+
 // ── System landscapes ───────────────────────────────────
 
 entity SystemLandscape {
@@ -46,9 +88,9 @@ entity SystemLandscape {
   name                : String(100);
   description         : String(500);
   type                : String(20);
-  changes             : Composition of many ChangeRequest on changes.landscape = $self;
   systems             : Composition of many SapSystem on systems.landscape = $self;
   routes              : Composition of many TransportRoute on routes.landscape = $self;
+  groups              : Composition of many TransportGroup on groups.landscape = $self;
 }
 
 entity SapSystem {
@@ -60,10 +102,13 @@ entity SapSystem {
   client              : String(3);
   type                : String(10);
   role                : String(10);
-  isActive            : Boolean      default true;
+  isActive            : Integer     default 1;
+  isSandbox           : Integer     default 0;
   description         : String(500);
-  isSandbox           : Boolean      default false;
-  sortOrder           : Integer      default 0;
+  sortOrder           : Integer     default 0;
+  rfcDestination      : String(100);
+  messageServer       : String(200);
+  logonGroup          : String(32);
 }
 
 entity TransportRoute {
@@ -72,8 +117,8 @@ entity TransportRoute {
   fromSystem          : Association to SapSystem;
   toSystem            : Association to SapSystem;
   routeType           : String(20);
-  isActive            : Boolean      default true;
-  sortOrder           : Integer      default 0;
+  isActive            : Integer     default 1;
+  sortOrder           : Integer     default 0;
 }
 
 // ── Transport management ────────────────────────────────
@@ -81,6 +126,7 @@ entity TransportRoute {
 entity TransportRequest {
   key ID              : UUID;
   changeRequest       : Association to ChangeRequest;
+  transportGroup      : Association to TransportGroup;
   transportNumber     : String(20);
   description         : String(500);
   owner               : String(100);
@@ -88,8 +134,10 @@ entity TransportRequest {
   status              : String(20)  default 'Open';
   category            : String(20);
   targetSystem        : Association to SapSystem;
+  importSequence      : Integer     default 0;
   objects             : Composition of many TransportObject on objects.transport = $self;
   importLogs          : Composition of many ImportLog on importLogs.transport = $self;
+  dependencyChecks    : Composition of many DependencyCheck on dependencyChecks.transport = $self;
   createdAt           : Timestamp;
 }
 
@@ -101,6 +149,7 @@ entity TransportObject {
   objName             : String(120);
   lockFlag            : String(1);
   activity            : String(1);
+  description         : String(200);
 }
 
 entity ImportLog {
@@ -112,9 +161,10 @@ entity ImportLog {
   log                 : String(5000);
   importedAt          : Timestamp;
   importedBy          : String(100);
+  durationSeconds     : Integer;
 }
 
-// ── Transport of Copies (TOC) ───────────────────────────
+// ── Transport of Copies ─────────────────────────────────
 
 entity TransportOfCopy {
   key ID              : UUID;
@@ -161,7 +211,7 @@ entity RetrofitTracker {
   reason              : String(1000);
   status              : String(20)  default 'Pending';
   dueDate             : Date;
-  aiDetected          : Boolean     default false;
+  aiDetected          : Integer     default 0;
   createdAt           : Timestamp;
 }
 
@@ -175,7 +225,7 @@ entity RiskScore {
   model               : String(50);
 }
 
-// ── Quality and compliance ──────────────────────────────
+// ── Quality & compliance ────────────────────────────────
 
 entity TestCase {
   key ID              : UUID;
@@ -187,7 +237,8 @@ entity TestCase {
   status              : String(20)  default 'Not Started';
   tester              : String(100);
   testedAt            : Timestamp;
-  aiGenerated         : Boolean     default false;
+  aiGenerated         : Integer     default 0;
+  evidence            : String(500);
 }
 
 entity FreezeWindow {
@@ -200,6 +251,7 @@ entity FreezeWindow {
   type                : String(20);
   reason              : String(500);
   createdBy           : String(100);
+  allowEmergency      : Integer     default 0;
 }
 
 entity AuditEntry {
@@ -221,9 +273,9 @@ entity SystemRole {
   key ID              : UUID;
   code                : String(10);
   description         : String(100);
-  allowsImport        : Boolean     default true;
-  requiresApproval    : Boolean     default true;
-  isFreezeEnabled     : Boolean     default false;
+  allowsImport        : Integer     default 1;
+  requiresApproval    : Integer     default 1;
+  isFreezeEnabled     : Integer     default 0;
   sortOrder           : Integer;
 }
 
@@ -233,5 +285,39 @@ entity LandscapeTemplate {
   description         : String(500);
   systemCount         : Integer;
   template            : String(5000);
-  isDefault           : Boolean     default false;
+  isDefault           : Integer     default 0;
+}
+
+// ── Users & approvers ───────────────────────────────────
+
+entity User {
+  key ID              : UUID;
+  email               : String(200);
+  name                : String(100);
+  role                : String(20);
+  isActive            : Integer     default 1;
+  landscapes          : String(500);
+  notifyEmail         : Integer     default 1;
+  createdAt           : Timestamp;
+}
+
+entity CABMember {
+  key ID              : UUID;
+  user                : Association to User;
+  landscape           : Association to SystemLandscape;
+  isChair             : Integer     default 0;
+  isActive            : Integer     default 1;
+}
+
+// ── SOX reports ─────────────────────────────────────────
+
+entity SOXReport {
+  key ID              : UUID;
+  reportType          : String(50);
+  periodStart         : Date;
+  periodEnd           : Date;
+  generatedBy         : String(100);
+  generatedAt         : Timestamp;
+  content             : String(5000);
+  status              : String(20)  default 'Draft';
 }
