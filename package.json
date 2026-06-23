@@ -2,13 +2,14 @@
   "name": "charm-ai",
   "version": "1.0.0",
   "dependencies": {
-    "@cap-js/hana": "^2",
     "@cap-js/sqlite": "^2.4.0",
-    "@sap/approuter": "^20.10.0",
     "@sap/cds": "^9.9.1",
     "@sap/cds-compiler": "^6.9.3",
-    "@sap/cds-dk": "^9.9.2",
-    "@sap/xssec": "^4"
+    "bytes": "^3.1.2",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@sap/cds-dk": "^9.9.2"
   },
   "scripts": {
     "start": "cds-serve"
@@ -21,19 +22,13 @@
           "url": ":memory:"
         }
       },
-      "[production]": {
-        "auth": "xsuaa"
+      "auth": {
+        "kind": "dummy"
       }
     }
   },
-  "private": true,
-  "sapux": [
-    "app/admin-authors",
-    "app/admin-books",
-    "app/browse",
-    "app/genres"
-  ],
-  "devDependencies": {
-    "@sap/cds-dk": "^9"
-  }
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
 }
