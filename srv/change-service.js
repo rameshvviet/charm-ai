@@ -1,4 +1,5 @@
 const cds = require('@sap/cds')
+const { runAgent } = require('./agent')
 
 module.exports = class ChangeService extends cds.ApplicationService {
 
@@ -24,13 +25,14 @@ Respond ONLY in this exact JSON format:
 riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`)
         req.data.riskLevel = result.riskLevel
         req.data.riskReason = result.reasoning + ' | ' + result.recommendations
+        req.data.status = 'Draft'
       } catch (err) {
         console.error('AI risk scoring failed:', err.message)
       }
     })
 
-    // ── Auto audit log on every change ─────────────────
-    this.after(['CREATE','UPDATE','DELETE'], '*', async (data, req) => {
+    // ── Auto audit log ──────────────────────────────────
+    this.after(['CREATE', 'UPDATE', 'DELETE'], '*', async (data, req) => {
       try {
         const db = await cds.connect.to('db')
         await db.run(INSERT.into('charm_ai_AuditEntry').entries({
@@ -39,12 +41,29 @@ riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`)
           entityId: data?.ID || cds.utils.uuid(),
           action: req.event,
           changedBy: req.user?.id || 'system',
-          changedAt: new Date().toISOString(),
+          changedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
           newValues: JSON.stringify(data).substring(0, 4999),
           hash: Math.random().toString(36).substring(2)
         }))
       } catch (err) {
         console.error('Audit log failed:', err.message)
+      }
+    })
+
+    // ── Agentic AI chat ─────────────────────────────────
+    this.on('chat', async (req) => {
+      const { message, history } = req.data
+      if (!message) return req.error(400, 'Message is required')
+      try {
+        let parsedHistory = []
+        if (history) {
+          try { parsedHistory = JSON.parse(history) } catch (e) {}
+        }
+        const result = await runAgent(message, parsedHistory)
+        return JSON.stringify(result)
+      } catch (err) {
+        console.error('Agent error:', err)
+        return req.error(500, err.message)
       }
     })
 
@@ -70,96 +89,53 @@ riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`)
     this.on('checkDependencies', async (req) => {
       const { transportId } = req.data
       const db = await cds.connect.to('db')
-
-      const transport = await db.run(
-        SELECT.one.from('charm_ai_TransportRequest').where({ ID: transportId })
-      )
+      const transport = await db.run(SELECT.one.from('charm_ai_TransportRequest').where({ ID: transportId }))
       if (!transport) return req.error(404, 'Transport not found')
-
-      const objects = await db.run(
-        SELECT.from('charm_ai_TransportObject').where({ transport_ID: transportId })
-      )
-
+      const objects = await db.run(SELECT.from('charm_ai_TransportObject').where({ transport_ID: transportId }))
       const objectList = objects.map(o => `${o.pgmid}/${o.object}/${o.objName}`).join('\n')
-
-      const prompt = `You are an SAP Basis expert. Analyze these transport objects and identify potential dependency issues.
-
+      const result = await this.callOpenAI(`You are an SAP Basis expert. Analyze these transport objects for dependency issues.
 Transport: ${transport.transportNumber}
-Type: ${transport.type}
-Objects in transport:
-${objectList || 'No objects listed yet'}
-
-Analyze for:
-1. Missing function module includes
-2. Broken class dependencies  
-3. Missing table definitions
-4. Program/include dependencies
-5. Authorization object dependencies
+Objects:
+${objectList || 'No objects listed'}
 
 Respond ONLY in this exact JSON format:
 {
   "severity": "LOW",
-  "missingDependencies": ["list any missing deps here"],
-  "analysis": "detailed analysis here",
+  "missingDependencies": ["list missing deps"],
+  "analysis": "detailed analysis",
   "recommendation": "what to do before importing"
-}`
-
-      const result = await this.callOpenAI(prompt)
-
+}`)
       await db.run(INSERT.into('charm_ai_DependencyCheck').entries({
         ID: cds.utils.uuid(),
         transport_ID: transportId,
         status: 'Completed',
         missingDependencies: JSON.stringify(result.missingDependencies || []),
         aiAnalysis: result.analysis + ' | ' + result.recommendation,
-        checkedAt: new Date().toISOString(),
+        checkedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
         severity: result.severity
       }))
-
       return JSON.stringify(result)
     })
 
     // ── AI overwrite conflict checker ───────────────────
     this.on('checkOverwrites', async (req) => {
-      const { landscapeId } = req.data
       const db = await cds.connect.to('db')
-
-      const transports = await db.run(
-        SELECT.from('charm_ai_TransportRequest')
-          .where({ status: 'Open' })
-      )
-
-      if (transports.length < 2) return 'Not enough open transports to check conflicts'
-
-      const transportDetails = await Promise.all(transports.map(async (t) => {
-        const objects = await db.run(
-          SELECT.from('charm_ai_TransportObject').where({ transport_ID: t.ID })
-        )
+      const transports = await db.run(SELECT.from('charm_ai_TransportRequest').where({ status: 'Open' }))
+      if (transports.length < 2) return 'Not enough open transports to check'
+      const details = await Promise.all(transports.map(async (t) => {
+        const objects = await db.run(SELECT.from('charm_ai_TransportObject').where({ transport_ID: t.ID }))
         return { transport: t.transportNumber, objects: objects.map(o => o.objName) }
       }))
-
-      const prompt = `You are an SAP Basis expert. Analyze these transport requests for overwrite conflicts.
-
-Open transports and their objects:
-${JSON.stringify(transportDetails, null, 2)}
-
-Identify:
-1. Objects that appear in multiple transports (overwrite risk)
-2. The recommended import sequence to minimize conflicts
-3. Any transports that should NOT be imported together
+      const result = await this.callOpenAI(`SAP Basis expert. Analyze these transports for overwrite conflicts.
+${JSON.stringify(details, null, 2)}
 
 Respond ONLY in this exact JSON format:
 {
-  "conflicts": [
-    {"object": "ZPROG", "transports": ["DEV123", "DEV456"], "severity": "HIGH"}
-  ],
-  "recommendedSequence": ["DEV123", "DEV456"],
-  "warnings": ["warning text here"]
-}`
-
-      const result = await this.callOpenAI(prompt)
+  "conflicts": [{"object": "ZPROG", "transports": ["DEV123"], "severity": "HIGH"}],
+  "recommendedSequence": ["DEV123"],
+  "warnings": ["warning text"]
+}`)
       const parsed = typeof result === 'string' ? JSON.parse(result) : result
-
       for (const conflict of (parsed.conflicts || [])) {
         await db.run(INSERT.into('charm_ai_OverwriteConflict').entries({
           ID: cds.utils.uuid(),
@@ -169,7 +145,6 @@ Respond ONLY in this exact JSON format:
           status: 'Open'
         }))
       }
-
       return JSON.stringify(parsed)
     })
 
@@ -177,47 +152,31 @@ Respond ONLY in this exact JSON format:
     this.on('detectRetrofits', async (req) => {
       const { changeId } = req.data
       const db = await cds.connect.to('db')
-
-      const change = await db.run(
-        SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeId })
-      )
+      const change = await db.run(SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeId }))
       if (!change) return req.error(404, 'Change Request not found')
-
-      const prompt = `You are an SAP change management expert. Analyze this change request and determine if a retrofit is needed.
-
-Change Request: ${change.title}
+      const result = await this.callOpenAI(`SAP change management expert. Does this change need a retrofit?
+Title: ${change.title}
 Description: ${change.description}
 Category: ${change.category}
 Type: ${change.type}
-Affected Modules: ${change.affectedModules}
-
-A retrofit is needed when:
-- A hotfix/urgent change is applied to production that also needs to go back into the development line
-- A change in one system track needs to be applied to a parallel track
-- A maintenance patch needs to be merged into the main development line
 
 Respond ONLY in this exact JSON format:
 {
   "retrofitNeeded": true,
-  "reason": "why retrofit is needed",
+  "reason": "why retrofit needed",
   "urgency": "HIGH",
-  "targetSystems": ["DEV track"],
-  "instructions": "what needs to be done"
-}`
-
-      const result = await this.callOpenAI(prompt)
-
+  "instructions": "what to do"
+}`)
       if (result.retrofitNeeded) {
         await db.run(INSERT.into('charm_ai_RetrofitTracker').entries({
           ID: cds.utils.uuid(),
           sourceChange_ID: changeId,
           reason: result.reason,
           status: 'Pending',
-          aiDetected: true,
-          createdAt: new Date().toISOString()
+          aiDetected: 1,
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
         }))
       }
-
       return JSON.stringify(result)
     })
 
@@ -225,39 +184,20 @@ Respond ONLY in this exact JSON format:
     this.on('generateTestCases', async (req) => {
       const { changeId } = req.data
       const db = await cds.connect.to('db')
-
-      const change = await db.run(
-        SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeId })
-      )
+      const change = await db.run(SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeId }))
       if (!change) return req.error(404, 'Change Request not found')
-
-      const prompt = `You are an SAP quality assurance expert. Generate test cases for this change request.
-
-Change: ${change.title}
+      const result = await this.callOpenAI(`SAP QA expert. Generate test cases for this change.
+Title: ${change.title}
 Description: ${change.description}
 Category: ${change.category}
-Affected Modules: ${change.affectedModules}
-Risk Level: ${change.riskLevel}
-
-Generate 3-5 test cases covering:
-1. Happy path (positive test)
-2. Negative/error scenarios
-3. Edge cases
-4. Regression scenarios
+Risk: ${change.riskLevel}
 
 Respond ONLY in this exact JSON format:
 {
   "testCases": [
-    {
-      "title": "Test case title",
-      "steps": "Step 1: ...\nStep 2: ...",
-      "expectedResult": "What should happen"
-    }
+    {"title": "test title", "steps": "Step 1...", "expectedResult": "what should happen"}
   ]
-}`
-
-      const result = await this.callOpenAI(prompt)
-
+}`)
       for (const tc of (result.testCases || [])) {
         await db.run(INSERT.into('charm_ai_TestCase').entries({
           ID: cds.utils.uuid(),
@@ -266,10 +206,9 @@ Respond ONLY in this exact JSON format:
           steps: tc.steps,
           expectedResult: tc.expectedResult,
           status: 'Not Started',
-          aiGenerated: true
+          aiGenerated: 1
         }))
       }
-
       return `Generated ${result.testCases?.length || 0} test cases`
     })
 
@@ -277,22 +216,12 @@ Respond ONLY in this exact JSON format:
     this.on('submitForApproval', async (req) => {
       const { changeRequestId } = req.data
       const db = await cds.connect.to('db')
-      const cr = await db.run(
-        SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeRequestId })
-      )
+      const cr = await db.run(SELECT.one.from('charm_ai_ChangeRequest').where({ ID: changeRequestId }))
       if (!cr) return req.error(404, 'Change Request not found')
       if (cr.status !== 'Draft') return req.error(400, 'Only Draft CRs can be submitted')
-
-      await db.run(
-        UPDATE('charm_ai_ChangeRequest')
-          .set({ status: 'Submitted' })
-          .where({ ID: changeRequestId })
-      )
-
+      await db.run(UPDATE('charm_ai_ChangeRequest').set({ status: 'Submitted' }).where({ ID: changeRequestId }))
       const approver = cr.riskLevel === 'CRITICAL' ? 'cab@charm.ai' :
-                       cr.riskLevel === 'HIGH' ? 'senior-approver@charm.ai' :
-                       'approver@charm.ai'
-
+                       cr.riskLevel === 'HIGH' ? 'senior-approver@charm.ai' : 'approver@charm.ai'
       await db.run(INSERT.into('charm_ai_ApprovalStep').entries({
         ID: cds.utils.uuid(),
         changeRequest_ID: changeRequestId,
@@ -300,9 +229,8 @@ Respond ONLY in this exact JSON format:
         role: cr.riskLevel === 'CRITICAL' ? 'CAB' : cr.riskLevel === 'HIGH' ? 'Senior Approver' : 'Approver',
         status: 'Pending',
         stepOrder: 1,
-        dueDate: new Date(Date.now() + 86400000).toISOString()
+        dueDate: new Date(Date.now() + 86400000).toISOString().replace('T', ' ').substring(0, 19)
       }))
-
       return `Submitted for approval → ${approver}`
     })
 
@@ -310,7 +238,11 @@ Respond ONLY in this exact JSON format:
       const { changeRequestId, comments } = req.data
       const db = await cds.connect.to('db')
       await db.run(UPDATE('charm_ai_ChangeRequest').set({ status: 'Approved' }).where({ ID: changeRequestId }))
-      await db.run(UPDATE('charm_ai_ApprovalStep').set({ status: 'Approved', comments, decidedAt: new Date().toISOString() }).where({ changeRequest_ID: changeRequestId }))
+      await db.run(UPDATE('charm_ai_ApprovalStep').set({
+        status: 'Approved',
+        comments,
+        decidedAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+      }).where({ changeRequest_ID: changeRequestId }))
       return 'Change Request approved'
     })
 
@@ -318,8 +250,27 @@ Respond ONLY in this exact JSON format:
       const { changeRequestId, comments } = req.data
       const db = await cds.connect.to('db')
       await db.run(UPDATE('charm_ai_ChangeRequest').set({ status: 'Rejected' }).where({ ID: changeRequestId }))
-      await db.run(UPDATE('charm_ai_ApprovalStep').set({ status: 'Rejected', comments, decidedAt: new Date().toISOString() }).where({ changeRequest_ID: changeRequestId }))
+      await db.run(UPDATE('charm_ai_ApprovalStep').set({
+        status: 'Rejected',
+        comments,
+        decidedAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+      }).where({ changeRequest_ID: changeRequestId }))
       return 'Change Request rejected'
+    })
+
+    // ── TOC creation ────────────────────────────────────
+    this.on('createTOC', async (req) => {
+      const { originalTransportId, targetSystemId, reason } = req.data
+      const db = await cds.connect.to('db')
+      await db.run(INSERT.into('charm_ai_TransportOfCopy').entries({
+        ID: cds.utils.uuid(),
+        originalTransport_ID: originalTransportId,
+        targetSystem_ID: targetSystemId,
+        reason,
+        status: 'Pending',
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+      }))
+      return 'Transport of Copy created'
     })
 
     await super.init()
