@@ -3,9 +3,9 @@ const cors = require('cors')
 
 cds.on('bootstrap', app => {
   app.use(cors({
-    origin: ['http://localhost:3000', 'https://charm-ai-production.up.railway.app'],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token']
   }))
 })
 
