@@ -2,7 +2,7 @@
   "name": "charm-ai",
   "version": "1.0.0",
   "dependencies": {
-    "@cap-js/postgres": "^1",
+    "@cap-js/postgres": "^1.14.2",
     "@cap-js/sqlite": "^2.4.0",
     "@sap/cds": "^9.9.1",
     "@sap/cds-compiler": "^6.9.3",
@@ -19,32 +19,15 @@
   "cds": {
     "requires": {
       "db": {
-        "kind": "sqlite",
+        "kind": "postgres",
         "credentials": {
-          "url": ":memory:"
+          "url": { "env": "DATABASE_URL" }
         }
       },
-      "auth": {
-        "kind": "dummy"
-      },
-      "[production]": {
-        "db": {
-          "kind": "postgres",
-          "credentials": {
-            "url": { "env": "DATABASE_URL" }
-          }
-        }
-      }
+      "auth": { "kind": "dummy" }
     },
-    "features": {
-      "in_memory_db": true
-    },
-    "server": {
-      "cors": true
-    }
+    "server": { "cors": true }
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "private": true
 }
