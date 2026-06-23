@@ -2,11 +2,12 @@
   "name": "charm-ai",
   "version": "1.0.0",
   "dependencies": {
+    "@cap-js/postgres": "^1",
     "@cap-js/sqlite": "^2.4.0",
     "@sap/cds": "^9.9.1",
     "@sap/cds-compiler": "^6.9.3",
     "bytes": "^3.1.2",
-    "cors": "^2.8.6",
+    "cors": "^2.8.5",
     "express": "^4.18.2"
   },
   "devDependencies": {
@@ -25,6 +26,14 @@
       },
       "auth": {
         "kind": "dummy"
+      },
+      "[production]": {
+        "db": {
+          "kind": "postgres",
+          "credentials": {
+            "url": { "env": "DATABASE_URL" }
+          }
+        }
       }
     },
     "features": {
