@@ -6,6 +6,7 @@ import Landscapes from './pages/Landscapes'
 import Transports from './pages/Transports'
 import Approvals from './pages/Approvals'
 import AgentChat from './pages/AgentChat'
+import Admin from './pages/Admin'
 import './App.css'
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:4004/api'
@@ -18,24 +19,22 @@ export default function App() {
     <BrowserRouter>
       <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif', background: '#0f1117', color: '#e2e8f0' }}>
 
-        {/* Sidebar */}
         <div style={{ width: sidebarOpen ? 240 : 60, background: '#1a1d27', borderRight: '1px solid #2d3148', transition: 'width .2s', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
 
-          {/* Logo */}
           <div style={{ padding: '20px 16px', borderBottom: '1px solid #2d3148', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>C</div>
             {sidebarOpen && <div><div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>ChARM AI</div><div style={{ fontSize: 10, color: '#6366f1' }}>Change Management</div></div>}
           </div>
 
-          {/* Nav */}
-          <nav style={{ flex: 1, padding: '12px 8px' }}>
+          <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
             {[
               { to: '/', icon: '⬡', label: 'Dashboard' },
-              { to: '/agent', icon: '🤖', label: 'AI Agent' },
+              { to: '/agent', icon: '🤖', label: 'AI Agent', badge: 'AI' },
               { to: '/changes', icon: '📋', label: 'Changes' },
               { to: '/approvals', icon: '✅', label: 'Approvals' },
               { to: '/transports', icon: '🚚', label: 'Transports' },
               { to: '/landscapes', icon: '🌐', label: 'Landscapes' },
+              { to: '/admin', icon: '⚙️', label: 'Admin', badge: 'Setup' },
             ].map(item => (
               <NavLink key={item.to} to={item.to} end={item.to === '/'}
                 style={({ isActive }) => ({
@@ -49,21 +48,19 @@ export default function App() {
                 })}>
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
                 {sidebarOpen && item.label}
-                {item.to === '/agent' && sidebarOpen && (
-                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 6px', background: '#6366f1', color: '#fff', borderRadius: 10, fontWeight: 600 }}>AI</span>
+                {item.badge && sidebarOpen && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 6px', background: item.badge === 'AI' ? '#6366f1' : '#f59e0b', color: '#fff', borderRadius: 10, fontWeight: 600 }}>{item.badge}</span>
                 )}
               </NavLink>
             ))}
           </nav>
 
-          {/* Toggle */}
           <button onClick={() => setSidebarOpen(!sidebarOpen)}
             style={{ margin: 12, padding: 8, background: '#2d3148', border: 'none', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
             {sidebarOpen ? '◀ Collapse' : '▶'}
           </button>
         </div>
 
-        {/* Main content */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -72,6 +69,7 @@ export default function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/transports" element={<Transports />} />
             <Route path="/landscapes" element={<Landscapes />} />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </div>
       </div>
