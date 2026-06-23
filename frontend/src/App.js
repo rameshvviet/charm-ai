@@ -5,6 +5,7 @@ import ChangeRequests from './pages/ChangeRequests'
 import Landscapes from './pages/Landscapes'
 import Transports from './pages/Transports'
 import Approvals from './pages/Approvals'
+import AgentChat from './pages/AgentChat'
 import './App.css'
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:4004/api'
@@ -30,6 +31,7 @@ export default function App() {
           <nav style={{ flex: 1, padding: '12px 8px' }}>
             {[
               { to: '/', icon: '⬡', label: 'Dashboard' },
+              { to: '/agent', icon: '🤖', label: 'AI Agent' },
               { to: '/changes', icon: '📋', label: 'Changes' },
               { to: '/approvals', icon: '✅', label: 'Approvals' },
               { to: '/transports', icon: '🚚', label: 'Transports' },
@@ -47,6 +49,9 @@ export default function App() {
                 })}>
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
                 {sidebarOpen && item.label}
+                {item.to === '/agent' && sidebarOpen && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, padding: '2px 6px', background: '#6366f1', color: '#fff', borderRadius: 10, fontWeight: 600 }}>AI</span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -62,6 +67,7 @@ export default function App() {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/agent" element={<AgentChat />} />
             <Route path="/changes" element={<ChangeRequests />} />
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/transports" element={<Transports />} />
