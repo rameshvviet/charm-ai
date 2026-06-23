@@ -62,6 +62,8 @@ entity SapSystem {
   role                : String(10);
   isActive            : Boolean      default true;
   description         : String(500);
+  isSandbox           : Boolean      default false;
+  sortOrder           : Integer      default 0;
 }
 
 entity TransportRoute {
@@ -71,6 +73,7 @@ entity TransportRoute {
   toSystem            : Association to SapSystem;
   routeType           : String(20);
   isActive            : Boolean      default true;
+  sortOrder           : Integer      default 0;
 }
 
 // ── Transport management ────────────────────────────────
@@ -109,6 +112,21 @@ entity ImportLog {
   log                 : String(5000);
   importedAt          : Timestamp;
   importedBy          : String(100);
+}
+
+// ── Transport of Copies (TOC) ───────────────────────────
+
+entity TransportOfCopy {
+  key ID              : UUID;
+  originalTransport   : Association to TransportRequest;
+  copyTransportNumber : String(20);
+  targetSystem        : Association to SapSystem;
+  reason              : String(500);
+  status              : String(20)  default 'Pending';
+  requestedBy         : String(100);
+  approvedBy          : String(100);
+  createdAt           : Timestamp;
+  importedAt          : Timestamp;
 }
 
 // ── AI intelligence ─────────────────────────────────────
@@ -157,7 +175,7 @@ entity RiskScore {
   model               : String(50);
 }
 
-// ── Quality & compliance ────────────────────────────────
+// ── Quality and compliance ──────────────────────────────
 
 entity TestCase {
   key ID              : UUID;
@@ -195,4 +213,25 @@ entity AuditEntry {
   newValues           : String(5000);
   ipAddress           : String(50);
   hash                : String(64);
+}
+
+// ── Admin configuration ─────────────────────────────────
+
+entity SystemRole {
+  key ID              : UUID;
+  code                : String(10);
+  description         : String(100);
+  allowsImport        : Boolean     default true;
+  requiresApproval    : Boolean     default true;
+  isFreezeEnabled     : Boolean     default false;
+  sortOrder           : Integer;
+}
+
+entity LandscapeTemplate {
+  key ID              : UUID;
+  name                : String(100);
+  description         : String(500);
+  systemCount         : Integer;
+  template            : String(5000);
+  isDefault           : Boolean     default false;
 }

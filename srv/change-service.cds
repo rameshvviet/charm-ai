@@ -2,23 +2,62 @@ using charm.ai as db from '../db/schema';
 
 service ChangeService @(path:'/api') {
 
-  entity ChangeRequests as projection on db.ChangeRequest;
-  entity ApprovalSteps  as projection on db.ApprovalStep;
-  entity Transports     as projection on db.Transport;
-  entity RiskScores     as projection on db.RiskScore;
+  // Core change management
+  entity ChangeRequests      as projection on db.ChangeRequest;
+  entity ApprovalSteps       as projection on db.ApprovalStep;
 
+  // System landscapes
+  entity SystemLandscapes    as projection on db.SystemLandscape;
+  entity SapSystems          as projection on db.SapSystem;
+  entity TransportRoutes     as projection on db.TransportRoute;
+
+  // Transport management
+  entity TransportRequests   as projection on db.TransportRequest;
+  entity TransportObjects    as projection on db.TransportObject;
+  entity ImportLogs          as projection on db.ImportLog;
+
+  // Transport of Copies
+  entity TransportOfCopies   as projection on db.TransportOfCopy;
+
+  // AI intelligence
+  entity DependencyChecks    as projection on db.DependencyCheck;
+  entity OverwriteConflicts  as projection on db.OverwriteConflict;
+  entity RetrofitTrackers    as projection on db.RetrofitTracker;
+  entity RiskScores          as projection on db.RiskScore;
+
+  // Quality and compliance
+  entity TestCases           as projection on db.TestCase;
+  entity FreezeWindows       as projection on db.FreezeWindow;
+  entity AuditEntries        as projection on db.AuditEntry;
+
+  // Admin configuration
+  entity SystemRoles         as projection on db.SystemRole;
+  entity LandscapeTemplates  as projection on db.LandscapeTemplate;
+
+  // AI actions
   action calculateRisk(
-    description    : String,
-    category       : String,
-    affectedModules: String,
-    plannedDate    : String
+    description     : String,
+    category        : String,
+    affectedModules : String,
+    plannedDate     : String
   ) returns {
-    riskLevel      : String;
-    reasoning      : String;
-    recommendations: String;
+    riskLevel       : String;
+    reasoning       : String;
+    recommendations : String;
   };
 
-  action submitForApproval(changeRequestId: UUID) returns String;
-  action approveChange(changeRequestId: UUID, comments: String) returns String;
-  action rejectChange(changeRequestId: UUID, comments: String) returns String;
+  action checkDependencies(transportId   : UUID) returns String;
+  action checkOverwrites(landscapeId     : UUID) returns String;
+  action detectRetrofits(changeId        : UUID) returns String;
+  action generateTestCases(changeId      : UUID) returns String;
+  action createTOC(
+    originalTransportId : UUID,
+    targetSystemId      : UUID,
+    reason              : String
+  ) returns String;
+
+  // Approval actions
+  action submitForApproval(changeRequestId : UUID) returns String;
+  action approveChange(changeRequestId : UUID, comments : String) returns String;
+  action rejectChange(changeRequestId  : UUID, comments : String) returns String;
 }
